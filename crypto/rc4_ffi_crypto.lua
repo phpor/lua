@@ -2,10 +2,11 @@
 local ffi = require("ffi")
 local crypto = ffi.load("crypto")
 
+-- 注意： rc4_key_st 中的unsigned int 有可能需要替换成unsigned char 参看：openssl/crypto/rc4/rc4.h
 ffi.cdef[[
 typedef struct rc4_key_st {
-	unsigned char x,y;
-	unsigned char data[256];
+	unsigned int x,y;
+	unsigned int data[256];
 } RC4_KEY;
 
 const char *RC4_options(void);
@@ -22,14 +23,13 @@ local function encrypt(key, data)
 	return ffi.string(buf, data_len)
 end
 local function test()
---	print(ffi.string(crypto.RC4_options())) -- rc4(1x,char)
---	local key = "test"
---	local rc4_key = ffi.new("RC4_KEY[1]")
---	crypto.RC4_set_key(rc4_key, ffi.cast("int", string.len(key)), ffi.cast("const unsigned char *", key))
---  测试发现： 只要执行了 RC4_set_key ,程序结束时就会段错误
+	local key = "test"
+	local data = "data"
+	local en = encrypt(key, data)
+	local de = encrypt(key, en)
+	print(de)
 end
 return {
 	encrypt = encrypt,
 	decrypt = encrypt,
-	test = test, --only for test
 }
