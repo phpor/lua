@@ -21,18 +21,21 @@ int RSA_public_decrypt(int flen, const unsigned char *from, unsigned char *to, R
 int RSA_private_decrypt(int flen, const unsigned char *from, unsigned char *to, RSA *rsa,int padding);
 
 BIO *BIO_new_mem_buf(void *buf, int len);
+int BIO_free(BIO *a);
 RSA *PEM_read_bio_RSA_PUBKEY(BIO *bp, RSA **x, pem_password_cb *cb, void *u);
 RSA *PEM_read_bio_RSAPrivateKey(BIO *bp, RSA **x, pem_password_cb *cb, void *u);
 int RSA_size(const RSA *r);
+void RSA_free(RSA *r);
 
 ]]
 
 
-local RSA_PKCS1_PADDING = 1;
+local RSA_PKCS1_PADDING = 1
 
 local function init_public_key(pem_key)
 	local bio = crypto.BIO_new_mem_buf(ffi.cast("unsigned char *", pem_key), -1)
-	local rsa = crypto.PEM_read_bio_RSA_PUBKEY(bio, nil, nil, nil);
+	local rsa = crypto.PEM_read_bio_RSA_PUBKEY(bio, nil, nil, nil)
+	crypto.BIO_free(bio)
 	if rsa == nil then
 		return nil, "parse public key fail"
 	end
@@ -40,9 +43,10 @@ local function init_public_key(pem_key)
 end
 local function init_private_key(pem_key)
 	local bio = crypto.BIO_new_mem_buf(ffi.cast("unsigned char *", pem_key), -1)
-	local rsa = crypto.PEM_read_bio_RSAPrivateKey(bio, nil, nil, nil);
+	local rsa = crypto.PEM_read_bio_RSAPrivateKey(bio, nil, nil, nil)
+	crypto.BIO_free(bio)
 	if rsa == nil then
-		return nil, "parse public key fail"
+		return nil, "parse private key fail"
 	end
 	return rsa, nil
 end
@@ -55,7 +59,11 @@ local function public_decrypt(key, data)
 	local decrypted = ffi.new("unsigned char[?]", size)
 	data = ffi.cast("const unsigned char *" ,data)
 	local len = crypto.RSA_public_decrypt(size, data, decrypted, rsa, RSA_PKCS1_PADDING)
-	return ffi.string(decrypted, len),len
+	crypto.RSA_free(rsa)
+	if len <= 0 then
+		return nil, "decrypt fail"
+	end
+	return ffi.string(decrypted, len), nil
 end
 
 local function private_encrypt(key, data)
@@ -66,7 +74,11 @@ local function private_encrypt(key, data)
 	local size = tonumber(crypto.RSA_size(rsa))
 	local encrypted = ffi.new("unsigned char[?]", size)
 	local len = crypto.RSA_private_encrypt(#data, data, encrypted, rsa, RSA_PKCS1_PADDING)
-	return ffi.string(encrypted, len),len
+	crypto.RSA_free(rsa)
+	if len ~= size then
+		return nil, "encrypt fail"
+	end
+	return ffi.string(encrypted, len), nil
 end
 
 return {
