@@ -1,20 +1,19 @@
 
-
 function auth() 
 	local username = ngx.var.remote_user 
 	local password = ngx.var.remote_passwd 
-	local sid = ngx.var.cookie_sid
+	local sid = ngx.var.cookie_ngx_sid
 	--ngx.say(username)
 	--ngx.say(password)
 	--ngx.exit(200)
 
-	if sid then
-		local username = check_session(sid)
-		if username ~= false then
+	if username and password  then
+		if check_password(username, password) then
 			return username
 		end
-	elseif username  and password  then
-		if check_password(username, password) then
+	elseif sid then
+		local username = check_session(sid)
+		if username ~= false then
 			return username
 		end
 	end
@@ -31,19 +30,48 @@ function auth_401()
 end
 
 function check_password(username, password)
-	if username == "phpor" and password == "phpor" then
-		create_session(username)
-		return true
+	local http = require "resty.http"
+	local cjson = require "cjson"
+	local httpc = http.new()
+	httpc:set_keepalive(0, 100)
+	httpc:set_timeout(time_out)
+	local url = "https://auth.phpor.net/api/ldap/check"
+	local params = string.format("username=%s&password=%s&app=nginx&ip=%s", username, password, ngx.var.remote_addr)
+	local res, err = httpc:request_uri(url, {
+		method = "POST",
+		body = params,
+		headers = {
+			["Content-Type"] = "application/x-www-form-urlencoded",
+		}
+	})
+	if res == nil then
+		ngx.log(ngx.ERR, "call " .. url .. " fail ",  err)
+		return false
 	end
-	return false
+	if res.status ~= 200 then
+		ngx.log(ngx.ERR, "call " .. url .. " fail ",  err)
+		return false
+	end
+	ngx.log(ngx.INFO, "uri:" .. url .. ", response:" .. res.body)
+	if pcall(cjson.decode, res.body) == false then
+		ngx.log(ngx.ERR, "uri:" .. url .. ",response parse fail:" .. res.body)
+		return false
+	end
+	local result = cjson.decode(res.body)
+	if result["retcode"] ~= 2000000 then
+		ngx.log(ngx.ERR, "auth fail", url, " ", params ," ", res.body)
+		return false
+	end
+	create_session(username)
+	return true
 end
 
 function create_session(username)
-	local sid = make_string(12)
+	local sid = make_string(24)
 
 	local redis = get_redis()
-	redis:set(sid, {username = username})
-	ngx.header['Set-Cookie'] = string.format('sid=%s; path=/', sid)
+	redis:hset(sid, {username = username})
+	ngx.header['Set-Cookie'] = string.format('ngx_sid=%s; path=/', sid)
 	return sid
 end
 
