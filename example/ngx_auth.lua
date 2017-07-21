@@ -72,7 +72,7 @@ function access.check_password(self, username, password)
 	local httpc = http.new()
 	httpc:set_keepalive(0, 100)
 	httpc:set_timeout(time_out)
-	local url = "http://phpor.net/api/ldap/check"
+	local url = self:config_get_auth_url()
 	local params = string.format("username=%s&password=%s&app=nginx&ip=%s", username, password, ngx.var.remote_addr)
 	local res, err = httpc:request_uri(url, {
 		method = "POST", body = params,
@@ -106,6 +106,7 @@ function access.create_session(self, username)
 	local sid = self:make_string(24)
 	local redis = self:get_redis()
 	redis:hmset(sid, {username = username})
+	redis:expire(sid, self:config_get_session_ttl())
 	ngx.header['Content-Type'] = "text/html; charset=utf-8"
 	ngx.header['Set-Cookie'] = string.format('ngx_sid=%s; path=/', sid)
 	return sid
@@ -129,12 +130,7 @@ function access.system_error(self)
 	ngx.exit(500)
 end
 function access.get_redis(self)
-        local redis_info = {
-                host="127.0.0.1",
-                port=6379
-                --db=3,
-                --password=""
-        }
+        local redis_info = self:config_get_redis_info()
 	local redis = require "resty.redis"
 	local red = redis:new()
 	red:set_timeout(3000) -- 3 sec
@@ -154,6 +150,21 @@ function access.get_redis(self)
 	end
 	return red
 end
+function access.config_get_auth_url(self)
+	return ngx.var.auth_url or "https://sa.beebank.com/api/ldap/check"
+end
+function access.config_get_session_ttl(self)
+	return ngx.var.auth_session_ttl or 3600
+end
+
+function access.config_get_redis_info(self)
+        return {
+                host= ngx.var.auth_redis_host or "127.0.0.1",
+                port=ngx.var.auth_redis_port or 6379,
+                db=ngx.var.auth_redis_db or 1,
+                password=ngx.var.auth_redis_password or nil
+        }
+end
 
 function access.check_session(self, sid)
     if #sid ~= 24 then return false end
@@ -162,22 +173,11 @@ function access.check_session(self, sid)
     if res and res ~= ngx.null then
     	local username = res[1] or ""
 	if username ~= "" and username ~= nil then
+		redis:expire(sid, self:config_get_session_ttl())
 	    	return username
 	end
     end
     return false
 end
 
-function access.admin_ip_limit()
-        local ip = ngx.var.remote_addr
-        local pos = string.find(ip, ".", 1, true)
-        local prefix = string.sub(ip, 1, pos - 1)
-        if (prefix == "10" or prefix == "127") then
-                ip = ngx.var.http_x_forwarded_for
-        end
-        if admin_ips:get(ip) == nil then
-                ngx.exit(ngx.HTTP_FORBIDDEN)
-        end
-end
-
-return {auth = access.auth, admin_ip_limit = access.admin_ip_limit}
+return {auth = access.auth }
