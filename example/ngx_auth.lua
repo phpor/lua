@@ -241,6 +241,8 @@ function access.logout_html(self)
 			    border-color: rgb(145, 145, 145);
 			    right: 0px;
 			    border-width: 1px 0px 1px 1px;
+			}
+    			.portal_logout a {
 			    text-decoration: none;
 			}
 		</style>
