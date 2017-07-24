@@ -231,8 +231,21 @@ end
 
 function access.logout_html(self)
 	return [[
-		<div style="float: right;margin: 7px 7px; z-index:9999" class="portal_logout">
-			<a href="/~portal/logout">logout</a>
+		<style>
+			.portal_logout {
+			    z-index: 9999;
+			    position: fixed;
+			    padding: 5px;
+			    background: rgb(241, 237, 237);
+			    border-style: solid solid solid solid;
+			    border-color: rgb(145, 145, 145);
+			    right: 0px;
+			    border-width: 1px 0px 1px 1px;
+			    text-decoration: none;
+			}
+		</style>
+		<div class="portal_logout">
+			<a href="/~portal/logout">Logout</a>
 		</div>
 	]]
 end
