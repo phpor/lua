@@ -245,6 +245,7 @@ function access.logout_html(self)
 			}
     			.portal_logout a {
 			    text-decoration: none;
+			    color: rgb(51, 51, 51);
 			}
 		</style>
 		<div class="portal_logout">
