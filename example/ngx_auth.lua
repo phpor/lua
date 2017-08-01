@@ -86,8 +86,8 @@ function access.show_auth_page(self)
 			    <div class="login">
 			      <h1>Login please ...</h1>
 			      <form method="post">
-				<p><input type="text" name="portal_username" value="junjie.li" placeholder="Username"></p>
-				<p><input type="password" name="portal_password" value="Lijunjie1983" placeholder="Password"></p>
+				<p><input type="text" name="portal_username" value="" placeholder="Username"></p>
+				<p><input type="password" name="portal_password" value="" placeholder="Password"></p>
 				<p><input type="hidden" name="portal_referer" value="#referer"></p>
 				<p class="submit"><input type="submit" name="commit" value="Login"></p>
 			      </form>
