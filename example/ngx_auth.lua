@@ -239,6 +239,7 @@ function access.logout_html(self)
 			    background: rgb(241, 237, 237);
 			    border-style: solid solid solid solid;
 			    border-color: rgb(145, 145, 145);
+			    top: 30px;
 			    right: 0px;
 			    border-width: 1px 0px 1px 1px;
 			}
