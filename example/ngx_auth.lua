@@ -216,17 +216,22 @@ function access.logout(self)
 end
 
 function access.append_logout_button()
-	local logout_page_url = access:config_get_logout_page_url()
-	local request_uri = ngx.var.request_uri
-	if logout_page_url ~= "*" then 
-		if logout_page_url ~= request_uri then return end
-	end
-	if request_uri == access:config_get_login_url() or request_uri == access:config_get_logout_url() then return end
-	if not string.gmatch(ngx.header['Content-Type'], "^text/html") then return end
-	local body, eof = ngx.arg[1], ngx.arg[2]
-	if eof then
-		ngx.arg[1] = ngx.arg[1] .. access:logout_html()
-	end
+        local body, eof = ngx.arg[1], ngx.arg[2]
+        if not eof then return end
+        local logout_page_url = access:config_get_logout_page_url()
+        local request_uri = ngx.var.request_uri
+        if logout_page_url == request_uri then
+                ngx.arg[1] = ngx.arg[1] .. access:logout_html()
+                return
+        end
+        if logout_page_url ~= "*" then return end
+        if request_uri == access:config_get_login_url() or request_uri == access:config_get_logout_url() then return end
+
+        local resp_content_type = ngx.resp.get_headers()["content-type"]
+        local ext = ngx.var.uri:match(".+%.(%w+)$")
+        if (resp_content_type and string.match(resp_content_type, "^text/html")) or (ext == "html" or ext == "htm") then
+                ngx.arg[1] = ngx.arg[1] .. access:logout_html()
+        end
 end
 
 function access.logout_html(self)
