@@ -9,6 +9,9 @@ nginx 配置文件示例：
         lua_ssl_verify_depth 2;
         lua_ssl_trusted_certificate /etc/ssl/certs/ca-bundle.trust.crt;
 
+        header_filter_by_lua_block {
+                ngx.header["content-length"] = nil
+        }
         access_by_lua_block {
                 require("ngx_lua"):auth()
         }
