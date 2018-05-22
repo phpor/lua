@@ -17,6 +17,9 @@ end
 function access.config_get_session_ttl(self)
 	return ngx.var.auth_session_ttl or 3600
 end
+function access.config_get_session_domain(self)
+	return ngx.var.auth_session_domain or ngx.var.http_host
+end
 
 function access.config_get_redis_info(self)
         return {
@@ -43,6 +46,16 @@ function access.auth()
 	end
 
 	if username and password  then
+		if ngx.var.allow_user then
+			ngx.log(ngx.ERR, "allow_user: " .. ngx.var.allow_user)
+			ngx.log(ngx.ERR, "username: " .. username)
+			local allow = false
+			string.gsub(ngx.var.allow_user, "[^,]+", function(user)
+				ngx.log(ngx.ERR, "user: " .. user)
+				if user == username then allow = true end
+			end)
+			if not allow then return access:show_auth_page() end
+		end
 		sid = access:check_password(username, password)
 		if sid then
 			return access:redirect(referer) --Avoid resubmit on refresh
@@ -50,7 +63,9 @@ function access.auth()
 	elseif sid then
 		local username = access:check_session(sid)
 		if username ~= false then
-			ngx.log(ngx.ERR, "username: " .. username)
+			local cookie = string.gsub(ngx.var.http_COOKIE, " *ngx_sid=[^;]+;? *", "")
+			if cookie == "" then cookie = nil end
+			ngx.req.set_header("Cookie", cookie)
 			return access:auth_succ(username)
 		end
 	end
@@ -77,8 +92,11 @@ function access.show_auth_page(self)
 			<head>
 			<title>login</title>
 			<meta charset="utf-8">
+			<meta name="viewport" content="width=device-width, initial-scale=1.0">
 			<style>
-				.container {text-align: center; margin-top: inherit; }
+				.container {font-weight: 400; text-align: center; display: table; margin-left: auto; margin-right: auto; height: 100%; }
+				.login { display: table-cell; vertical-align: middle; width: 300px;}
+				input { width: 100%; height: 30px; padding: 6 12px; font-size: 14px; border: solid 1px; background-color: #e2e2e2; }
 			</style>
 			</head>
 			<body>
@@ -143,10 +161,11 @@ end
 function access.create_session(self, username)
 	local sid = self:make_string(24)
 	local redis = self:get_redis()
+
 	redis:hmset(sid, 'username' , username)
 	redis:expire(sid, self:config_get_session_ttl())
 	ngx.header['Content-Type'] = "text/html; charset=utf-8"
-	ngx.header['Set-Cookie'] = string.format('ngx_sid=%s; path=/', sid)
+	ngx.header['Set-Cookie'] = string.format('ngx_sid=%s; domain=.%s; path=/', sid, self:config_get_session_domain())
 	return sid
 end
 
@@ -198,7 +217,7 @@ function access.check_session(self, sid)
 	return false
     end
     local username = res[1] or ""
-    
+
     if type(username) == "string" and username ~= "" and username ~= nil then
         redis:expire(sid, self:config_get_session_ttl())
         return username
@@ -210,8 +229,8 @@ function access.logout(self)
 	local sid = ngx.var.cookie_ngx_sid
 	local redis = self:get_redis()
 	redis:del(sid)
+	ngx.header['Set-Cookie'] = string.format('ngx_sid=deleted; domain=.%s; path=/; expires=%s', self:config_get_session_domain(), ngx.cookie_time(1))
 	ngx.redirect(self:config_get_login_url(), 302)
-	ngx.header['Set-Cookie'] = string.format('ngx_sid=deleted; path=/deleted; expires='..ngx.cookie_time(1), sid)
 	ngx.eof()
 end
 
@@ -224,6 +243,7 @@ function access.append_logout_button()
 		ngx.arg[1] = ngx.arg[1] .. access:logout_html()
 		return
 	end
+	if ngx.req.get_headers()['X-Requested-With'] == "XMLHttpRequest" then return end
 	if logout_page_url ~= "*" then return end
 	if request_uri == access:config_get_login_url() or request_uri == access:config_get_logout_url() then return end
 
@@ -250,7 +270,7 @@ function access.logout_html(self)
 			    background: rgb(241, 237, 237);
 			    border-style: solid solid solid solid;
 			    border-color: rgb(145, 145, 145);
-			    top: 30px;
+			    top: 40px;
 			    right: 0px;
 			    border-width: 1px 0px 1px 1px;
 			}
